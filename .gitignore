@@ -1,0 +1,44 @@
+# Build and packaging
+target/
+build/
+dist/
+out/
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven wrapper binary (optional to ignore, wrapper properties and scripts are tracked)
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE and editor files
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Secrets / local env overrides
+*.env
+*.local
