@@ -12,6 +12,12 @@ import java.time.Instant;
                         name = "uk_ip_address_subnet_address",
                         columnNames = {"subnet_id", "address"}
                 )
+        },
+        indexes = {
+                @Index(
+                        name = "idx_ip_address_subnet_status_numeric",
+                        columnList = "subnet_id, status, address_numeric"
+                )
         }
 )
 public class IpAddress {
@@ -47,12 +53,36 @@ public class IpAddress {
         // Required by JPA
     }
 
+    public static IpAddress createAvailable(Subnet subnet, String address) {
+        return new IpAddress(subnet, address, IpAddressStatus.AVAILABLE);
+    }
+
+    public static IpAddress createReserved(Subnet subnet, String address) {
+        return new IpAddress(subnet, address, IpAddressStatus.RESERVED);
+    }
+
     public IpAddress(
             Subnet subnet,
             String address
     ) {
+        this(subnet, address, IpAddressStatus.AVAILABLE);
+    }
+
+    private IpAddress(
+            Subnet subnet,
+            String address,
+            IpAddressStatus status
+    ) {
         if (subnet == null) {
             throw new IllegalArgumentException("Subnet is required");
+        }
+
+        if (status == null) {
+            throw new IllegalArgumentException("Status is required");
+        }
+
+        if (status != IpAddressStatus.AVAILABLE && status != IpAddressStatus.RESERVED) {
+            throw new IllegalArgumentException("Initial status must be AVAILABLE or RESERVED");
         }
 
         long numericAddress = Ipv4AddressCalculator.toNumeric(address);
@@ -68,7 +98,7 @@ public class IpAddress {
         this.subnet = subnet;
         this.address = Ipv4AddressCalculator.toAddress(numericAddress);
         this.addressNumeric = numericAddress;
-        this.status = IpAddressStatus.AVAILABLE;
+        this.status = status;
     }
 
     @PrePersist
