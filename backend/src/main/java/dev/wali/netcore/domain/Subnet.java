@@ -94,6 +94,15 @@ public class Subnet {
             throw new IllegalArgumentException("Gateway address must belong to the subnet");
         }
 
+        long networkNumeric = Ipv4AddressCalculator.toNumeric(networkAddress);
+        long broadcastNumeric = Ipv4AddressCalculator.broadcastAddress(
+                networkNumeric,
+                prefixLength
+        );
+        if (numericGateway == networkNumeric || numericGateway == broadcastNumeric) {
+            throw new IllegalArgumentException("Gateway address must be a usable host address");
+        }
+
         this.gatewayAddress = canonicalGateway;
     }
 }

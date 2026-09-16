@@ -58,6 +58,8 @@ public class IpAllocationService {
     ) {
         requireSubnet(subnetId);
         NetworkInterface networkInterface = requireNetworkInterface(networkInterfaceId);
+
+        // Numeric ordering gives callers a predictable lowest-address-first allocation.
         IpAddress ipAddress = ipAddressRepository
                 .findFirstBySubnetIdAndStatusOrderByAddressNumericAsc(
                         subnetId,

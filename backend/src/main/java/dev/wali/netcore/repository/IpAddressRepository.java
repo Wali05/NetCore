@@ -33,6 +33,10 @@ public interface IpAddressRepository extends JpaRepository<IpAddress, Long> {
 
     long countBySubnetIdAndStatus(Long subnetId, IpAddressStatus status);
 
+    List<IpAddress> findAllByNetworkInterfaceIdOrderByAddressNumericAsc(
+            Long networkInterfaceId
+    );
+
     @EntityGraph(attributePaths = {
             "subnet",
             "networkInterface",

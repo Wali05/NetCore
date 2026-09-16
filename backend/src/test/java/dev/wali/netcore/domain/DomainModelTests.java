@@ -24,6 +24,18 @@ class DomainModelTests {
     }
 
     @Test
+    void rejectsNetworkOrBroadcastAddressAsGateway() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new Subnet("192.168.1.0", 24, "192.168.1.0")
+        );
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new Subnet("192.168.1.0", 24, "192.168.1.255")
+        );
+    }
+
+    @Test
     void createsAvailableIpAddressWithDerivedNumericValue() {
         Subnet subnet = new Subnet("192.168.1.0", 24, "192.168.1.1");
 
