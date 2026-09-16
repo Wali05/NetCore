@@ -33,6 +33,19 @@ A `Device` owns one or more `NetworkInterface` records. Allocation links an avai
 
 Controllers deal with HTTP requests, application services coordinate each transaction, domain objects enforce local rules, and repositories handle persistence. The API uses request and response records instead of serializing JPA entities directly.
 
+The backend is organized by feature:
+
+```text
+dev/wali/netcore/
+├── allocation/  # assign and release addresses
+├── device/      # devices and network interfaces
+├── health/      # application health endpoint
+├── shared/      # common API responses and error handling
+└── subnet/      # subnet models, address pools, and persistence
+```
+
+Each feature keeps its controller, service, persistence, and API types together. Tests follow the same layout, with cross-feature HTTP workflows under `integration/`.
+
 ## Requirements
 
 - Java 25
