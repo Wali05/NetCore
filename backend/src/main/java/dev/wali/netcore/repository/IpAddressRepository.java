@@ -26,6 +26,11 @@ public interface IpAddressRepository extends JpaRepository<IpAddress, Long> {
 
     Optional<IpAddress> findBySubnetIdAndAddress(Long subnetId, String address);
 
+    Optional<IpAddress> findFirstBySubnetIdAndStatusOrderByAddressNumericAsc(
+            Long subnetId,
+            IpAddressStatus status
+    );
+
     long countBySubnetIdAndStatus(Long subnetId, IpAddressStatus status);
 
     @EntityGraph(attributePaths = {

@@ -1,8 +1,24 @@
 # NetCore
 
-NetCore is a network source-of-truth and IP provisioning system. The goal is to explore how network inventory, IP allocation, and DHCP provisioning can be managed safely from one control plane.
+NetCore is a small IP address management system for modelling networks, materializing IPv4 address pools, and assigning addresses to network interfaces.
 
-The project is at an early stage. Right now, the repository contains the backend foundation: a Spring Boot application, local database configuration, an Oracle-ready profile, health endpoints, and a small test suite.
+The project is being built incrementally around explicit domain rules and database-backed workflows. The current backend can generate and persist subnet pools, allocate addresses to interfaces, and release them back into the available pool.
+
+## Current capabilities
+
+- Model devices, network interfaces, subnets, and IPv4 addresses
+- Convert IPv4 addresses between textual and numeric forms
+- Calculate network and broadcast addresses
+- Materialize address pools for `/24` through `/30` subnets
+- Reserve network, broadcast, and configured gateway addresses
+- Persist a subnet and its generated pool in one transaction
+- Query addresses in numeric order, with pagination and status filtering
+- Allocate a requested address or the next available address
+- Release an allocated address
+- Preserve assignments, statuses, and timestamps across database reloads
+- Reject invalid, reserved, duplicate, missing, and exhausted allocation requests
+
+Automated tests cover the domain rules, pool generation, persistence, database constraints, allocation, release, and transaction rollback.
 
 ## Requirements
 
@@ -26,7 +42,7 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
-The API starts at `http://localhost:8080`. Useful endpoints are:
+The application starts at `http://localhost:8080`. The endpoints currently exposed are:
 
 - `GET /api/v1/health`
 - `GET /actuator/health`
@@ -43,11 +59,19 @@ From the `backend` directory:
 
 Use `./mvnw test` on Linux or macOS.
 
-## Planned work
+## Current limitations
 
-- Model devices, network interfaces, subnets, and addresses
-- Allocate addresses safely under concurrent requests
-- Persist production data in Oracle
-- Integrate DHCP provisioning through Kea
-- Recover and reconcile failed provisioning operations
-- Add an operations dashboard
+- IPAM operations currently exist in the service layer and are not exposed through REST endpoints yet.
+- Next-address allocation is correct for sequential requests but does not yet lock rows against concurrent allocators.
+- Persistence tests currently run against H2. The Oracle profile is prepared but has not been verified against a real Oracle database.
+- The operations dashboard, Docker environment, and CI workflow have not been added.
+
+## Next steps
+
+- Expose subnet, address, device, interface, allocation, and release workflows through REST
+- Reproduce and solve concurrent next-address allocation
+- Add a focused React operations dashboard
+- Add Docker-based local execution and automated CI checks
+- Verify database behavior against Oracle
+
+DHCP integration and reconciliation remain possible future extensions after the smaller IPAM application is complete.
