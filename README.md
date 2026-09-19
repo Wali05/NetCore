@@ -120,17 +120,28 @@ From the `backend` directory:
 
 Use `./mvnw test` on Linux or macOS.
 
+## Oracle compatibility check
+
+With a working Docker engine, run this from `backend`:
+
+```powershell
+.\mvnw.cmd -P oracle-integration verify
+```
+
+On Linux or macOS, use `./mvnw -P oracle-integration verify`. The optional integration test starts an Oracle Free container, creates a temporary schema, then checks pool persistence, concurrent allocation, and release on Oracle. It does not require an Oracle Cloud account. The regular test command does not start a container.
+
+This integration check has passed against Oracle Free. The `oracle` application profile expects an existing schema and validates it at startup. A migration or schema provisioning step is still needed before using that profile for a persistent deployment.
+
 ## Current limitations
 
-- Next-address allocation is correct for sequential requests but does not yet lock rows against concurrent allocators.
-- Persistence tests currently run against H2. The Oracle profile is prepared but has not been verified against a real Oracle database.
+- Allocation and release serialize on the subnet row. Concurrent allocation is covered on H2 and Oracle Free.
+- The Oracle integration test needs a working Docker engine. It verifies the core persistence and allocation workflow, not a persistent Oracle deployment.
 - The operations dashboard, Docker environment, and CI workflow have not been added.
 
 ## Next steps
 
-- Reproduce and solve concurrent next-address allocation
 - Add a focused React operations dashboard
 - Add Docker-based local execution and automated CI checks
-- Verify database behavior against Oracle
+- Add repeatable schema provisioning for persistent Oracle deployment
 
 DHCP integration and reconciliation remain possible future extensions after the smaller IPAM application is complete.

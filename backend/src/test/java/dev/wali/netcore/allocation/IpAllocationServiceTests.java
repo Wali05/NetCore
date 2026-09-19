@@ -22,10 +22,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @ActiveProfiles("local")
@@ -173,6 +183,58 @@ class IpAllocationServiceTests {
                         networkInterface.getId()
                 )
         );
+    }
+
+    @Test
+    void concurrentRequestsAllocateEachAddressOnlyOnce() throws Exception {
+        Subnet subnet = createSubnet("192.168.90.0", 30, null);
+        NetworkInterface networkInterface = createInterface(
+                "compute-node-01", "AA:BB:CC:DD:EE:01"
+        );
+
+        int requests = 6;
+        CountDownLatch ready = new CountDownLatch(requests);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(requests);
+        try {
+            List<Future<String>> futures = new ArrayList<>();
+            for (int i = 0; i < requests; i++) {
+                Callable<String> task = () -> {
+                    ready.countDown();
+                    if (!start.await(10, TimeUnit.SECONDS)) {
+                        throw new AssertionError("Concurrent allocation did not start");
+                    }
+                    try {
+                        return ipAllocationService.allocateNextAvailable(
+                                subnet.getId(), networkInterface.getId()
+                        ).getAddress();
+                    } catch (NoAvailableIpAddressException expected) {
+                        return null;
+                    }
+                };
+                futures.add(executor.submit(task));
+            }
+
+            assertTrue(ready.await(10, TimeUnit.SECONDS));
+            start.countDown();
+
+            List<String> allocated = new ArrayList<>();
+            for (Future<String> future : futures) {
+                String address = future.get(20, TimeUnit.SECONDS);
+                if (address != null) {
+                    allocated.add(address);
+                }
+            }
+
+            assertEquals(2, allocated.size());
+            assertEquals(2, allocated.stream().distinct().count());
+            assertEquals(2, ipAddressRepository.countBySubnetIdAndStatus(
+                    subnet.getId(), IpAddressStatus.ALLOCATED
+            ));
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test

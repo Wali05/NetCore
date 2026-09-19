@@ -37,7 +37,7 @@ public class IpAllocationService {
             String address,
             Long networkInterfaceId
     ) {
-        requireSubnet(subnetId);
+        lockSubnet(subnetId);
         NetworkInterface networkInterface = requireNetworkInterface(networkInterfaceId);
         String canonicalAddress = canonicalAddress(address);
         IpAddress ipAddress = ipAddressRepository
@@ -55,7 +55,7 @@ public class IpAllocationService {
             Long subnetId,
             Long networkInterfaceId
     ) {
-        requireSubnet(subnetId);
+        lockSubnet(subnetId);
         NetworkInterface networkInterface = requireNetworkInterface(networkInterfaceId);
 
         // Numeric ordering gives callers a predictable lowest-address-first allocation.
@@ -73,7 +73,7 @@ public class IpAllocationService {
 
     @Transactional
     public IpAddress release(Long subnetId, String address) {
-        requireSubnet(subnetId);
+        lockSubnet(subnetId);
         String canonicalAddress = canonicalAddress(address);
         IpAddress ipAddress = ipAddressRepository
                 .findBySubnetIdAndAddress(subnetId, canonicalAddress)
@@ -85,10 +85,14 @@ public class IpAllocationService {
         return ipAddress;
     }
 
-    private void requireSubnet(Long subnetId) {
-        if (subnetId == null || !subnetRepository.existsById(subnetId)) {
+    private void lockSubnet(Long subnetId) {
+        if (subnetId == null) {
             throw new SubnetNotFoundException(subnetId);
         }
+
+        // One lock per pool keeps selection and state changes in the same order.
+        subnetRepository.findByIdForAllocation(subnetId)
+                .orElseThrow(() -> new SubnetNotFoundException(subnetId));
     }
 
     private NetworkInterface requireNetworkInterface(Long networkInterfaceId) {
