@@ -62,30 +62,14 @@ p {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 11px;
-  font-size: 20px;
-  font-weight: 750;
-  letter-spacing: -0.045em;
+  height: 52px;
 }
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: #183b35;
-  color: #fff;
-  font-size: 18px;
-  letter-spacing: -0.06em;
-}
-.brand small {
+.brand-logo {
   display: block;
-  margin-top: 2px;
-  color: #778882;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  width: 200px;
+  height: 52px;
+  object-fit: cover;
+  object-position: center;
 }
 .nav-label,
 .meta-label,
@@ -917,12 +901,11 @@ tbody tr:hover {
     border-bottom: 1px solid #dce3dc;
   }
   .brand {
-    font-size: 17px;
+    height: 42px;
   }
-  .brand-mark {
-    width: 30px;
-    height: 30px;
-    font-size: 15px;
+  .brand-logo {
+    width: 170px;
+    height: 42px;
   }
   .nav-label,
   .sidebar-foot,

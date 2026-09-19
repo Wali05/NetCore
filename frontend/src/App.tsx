@@ -190,10 +190,7 @@ function App() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">N</span>
-          <span>
-            NetCore<small>IP ADDRESS MANAGEMENT</small>
-          </span>
+          <img className="brand-logo" src="/netcore-wordmark.png" alt="NetCore" />
         </div>
         <div className="nav-label">WORKSPACE</div>
         <nav aria-label="Main navigation">

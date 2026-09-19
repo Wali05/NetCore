@@ -1,5 +1,7 @@
 # NetCore
 
+![NetCore wordmark](docs/assets/netcore-wordmark.png)
+
 NetCore manages IPv4 subnets and the addresses assigned to device interfaces. I built it to work through a specific systems problem: how to keep an address inventory correct when requests arrive at the same time.
 
 The result is a working IP address management application with a React dashboard, a Spring Boot API, and Oracle persistence. An address is either reserved, available, or assigned to one interface; competing requests cannot claim it twice.
