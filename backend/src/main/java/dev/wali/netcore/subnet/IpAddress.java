@@ -13,6 +13,10 @@ import java.time.Instant;
                 @UniqueConstraint(
                         name = "uk_ip_address_subnet_address",
                         columnNames = {"subnet_id", "address"}
+                ),
+                @UniqueConstraint(
+                        name = "uk_ip_address_address",
+                        columnNames = {"address"}
                 )
         },
         indexes = {

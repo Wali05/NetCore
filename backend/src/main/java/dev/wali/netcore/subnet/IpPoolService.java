@@ -51,7 +51,4 @@ public class IpPoolService {
         return addresses;
     }
 
-    public List<IpAddress> generateAddresses(Subnet subnet) {
-        return generatePool(subnet);
-    }
 }

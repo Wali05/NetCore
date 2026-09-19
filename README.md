@@ -1,147 +1,82 @@
 # NetCore
 
-NetCore is a small IP address management system for modelling networks, materializing IPv4 address pools, and assigning addresses to network interfaces.
+NetCore manages IPv4 subnets and the addresses assigned to device interfaces. I built it to work through a specific systems problem: how to keep an address inventory correct when requests arrive at the same time.
 
-The project is being built incrementally around explicit domain rules and database-backed workflows. The current backend exposes the main IPAM workflow through a REST API: create a subnet pool, register a device and its interfaces, assign an address, and release it.
+The result is a working IP address management application with a React dashboard, a Spring Boot API, and Oracle persistence. An address is either reserved, available, or assigned to one interface; competing requests cannot claim it twice.
 
-The scope is intentionally small. NetCore is currently an IPAM backend, not a complete network automation platform. DHCP integration and an operations dashboard remain later work.
+![NetCore overview showing available addresses, allocations, and a managed subnet](docs/assets/dashboard-overview.png)
 
-## Current capabilities
+*The overview running locally with Oracle Free and sample inventory data.*
 
-- Model devices, network interfaces, subnets, and IPv4 addresses
-- Convert IPv4 addresses between textual and numeric forms
-- Calculate network and broadcast addresses
-- Materialize address pools for `/24` through `/30` subnets
-- Reserve network, broadcast, and configured gateway addresses
-- Persist a subnet and its generated pool in one transaction
-- Query addresses in numeric order, with pagination and status filtering
-- Allocate a requested address or the next available address
-- Release an allocated address
-- Create devices and attach uniquely named network interfaces
-- Inspect the addresses assigned to an interface
-- Validate API requests and return structured errors for invalid or conflicting operations
-- Preserve assignments, statuses, and timestamps across database reloads
-- Reject invalid, reserved, duplicate, missing, and exhausted allocation requests
+## What you can do
 
-Automated tests cover the domain rules, pool generation, persistence, database constraints, allocation, release, transaction rollback, and complete HTTP workflows.
+1. Create an IPv4 subnet from `/24` to `/30`. NetCore generates its address pool and reserves the network, broadcast, and optional gateway addresses.
+2. Register devices and their network interfaces.
+3. Assign the next available address or request a specific one. See the assignment on both the address and interface views.
+4. Release an address when it is no longer in use. Filter and page through a subnet's pool to inspect its state.
 
-## How it fits together
+For example, creating `10.20.30.0/29` with gateway `10.20.30.1` makes `.0`, `.1`, and `.7` reserved. The other five addresses can be assigned to interfaces.
 
-A `Subnet` defines an IPv4 network. Creating one also creates its complete address pool. Network, broadcast, and configured gateway addresses are marked as reserved; the remaining addresses begin as available.
+## How NetCore keeps the inventory consistent
 
-A `Device` owns one or more `NetworkInterface` records. Allocation links an available `IpAddress` to an interface and records when the assignment happened. Releasing it removes that link and returns the address to the available pool.
+- **One transaction creates a pool.** A subnet and every address in its pool are saved together. A failure rolls back the whole creation.
+- **One subnet lock governs allocation.** Assigning or releasing an address takes a database write lock on its subnet. Requests for the same subnet make their decisions in sequence; different subnets can proceed independently.
+- **The database rejects overlap.** NetCore does not model separate routing domains, so an address cannot appear in two subnet pools. A unique constraint enforces this even if two requests try to create overlapping pools concurrently.
 
-Controllers deal with HTTP requests, application services coordinate each transaction, domain objects enforce local rules, and repositories handle persistence. The API uses request and response records instead of serializing JPA entities directly.
+These choices favor a clear correctness argument over maximum throughput. The [architecture notes](docs/architecture.md) cover the model, transaction boundaries, and trade-offs in more detail.
 
-The backend is organized by feature:
+## Run the application
 
-```text
-dev/wali/netcore/
-├── allocation/  # assign and release addresses
-├── device/      # devices and network interfaces
-├── health/      # application health endpoint
-├── shared/      # common API responses and error handling
-└── subnet/      # subnet models, address pools, and persistence
+With Docker running, start the full stack from the repository root:
+
+```bash
+docker compose up --build
 ```
 
-Each feature keeps its controller, service, persistence, and API types together. Tests follow the same layout, with cross-feature HTTP workflows under `integration/`.
+Open [localhost:3000](http://localhost:3000). Compose starts Oracle Free, the API, and the dashboard. Oracle's first start may take several minutes. Data lives in a named volume and survives `docker compose down`.
 
-## Requirements
+The Compose password is a local development default. Set `NETCORE_DB_PASSWORD` in an untracked `.env` file before using the stack on a shared machine.
 
-- Java 25
+### Work on the code without Oracle
 
-Maven is included through the Maven Wrapper, so a separate Maven installation is not required.
-
-## Run locally
-
-From the repository root on Windows:
-
-```powershell
-cd backend
-.\mvnw.cmd spring-boot:run
-```
-
-On Linux or macOS:
+Use Java 25 and Node.js 22. The backend defaults to in-memory H2, and the repository includes the Maven Wrapper. In one terminal:
 
 ```bash
 cd backend
 ./mvnw spring-boot:run
 ```
 
-The application starts at `http://localhost:8080`.
+On Windows, run `.\mvnw.cmd spring-boot:run`. In another terminal:
 
-## API
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `POST` | `/api/v1/subnets` | Create a subnet and materialize its address pool |
-| `GET` | `/api/v1/subnets` | List subnets and their utilization |
-| `GET` | `/api/v1/subnets/{id}` | Get one subnet |
-| `GET` | `/api/v1/subnets/{id}/addresses` | Page through addresses, optionally filtered by status |
-| `POST` | `/api/v1/subnets/{id}/addresses/{address}/allocate` | Assign a requested address to an interface |
-| `POST` | `/api/v1/subnets/{id}/allocate-next` | Assign the lowest available address to an interface |
-| `POST` | `/api/v1/subnets/{id}/addresses/{address}/release` | Release an assigned address |
-| `POST` | `/api/v1/devices` | Create a device |
-| `GET` | `/api/v1/devices` | List devices |
-| `POST` | `/api/v1/devices/{id}/interfaces` | Add an interface to a device |
-| `GET` | `/api/v1/devices/{id}/interfaces` | List a device's interfaces and assignments |
-| `GET` | `/api/v1/interfaces/{id}` | Get one interface and its assignments |
-| `GET` | `/api/v1/health` | Check application health |
-| `GET` | `/actuator/health` | Check Spring Boot health details |
-
-Local development uses an in-memory H2 database.
-
-### Typical workflow
-
-1. Create a subnet with `POST /api/v1/subnets`.
-2. Create a device with `POST /api/v1/devices`.
-3. Add an interface with `POST /api/v1/devices/{deviceId}/interfaces`.
-4. Assign a requested address or use `POST /api/v1/subnets/{subnetId}/allocate-next`.
-5. Inspect the assignment through `GET /api/v1/interfaces/{interfaceId}`.
-6. Release the address when it is no longer needed.
-
-Create requests use JSON. For example:
-
-```json
-{
-  "networkAddress": "10.20.30.0",
-  "prefixLength": 29,
-  "gatewayAddress": "10.20.30.1"
-}
+```bash
+cd frontend
+npm ci
+npm run dev
 ```
 
-## Run the tests
+Open [localhost:5173](http://localhost:5173). The development server forwards API requests to the backend on port 8080. H2 data is cleared when the backend stops.
 
-From the `backend` directory:
+## Verify the behavior
 
-```powershell
-.\mvnw.cmd test
-```
+From `backend`, run `./mvnw clean verify` (or `.\mvnw.cmd clean verify` on Windows). Tests cover IPv4 calculations, pool generation, invalid state changes, persistence, HTTP workflows, and concurrent allocation.
 
-Use `./mvnw test` on Linux or macOS.
+With Docker running, `./mvnw -P oracle-integration verify` starts Oracle Free through Testcontainers, applies both Flyway migrations, validates the schema, and exercises allocation under contention. From `frontend`, run `npm ci`, `npm run format:check`, and `npm run build`. GitHub Actions runs these checks on pushes and pull requests.
 
-## Oracle compatibility check
+## API at a glance
 
-With a working Docker engine, run this from `backend`:
+The dashboard uses the same REST API exposed under `/api/v1`:
 
-```powershell
-.\mvnw.cmd -P oracle-integration verify
-```
+| Action | Endpoint |
+| --- | --- |
+| Create or list subnets | `POST /subnets` · `GET /subnets` |
+| Inspect a subnet's addresses | `GET /subnets/{id}/addresses` |
+| Allocate the next address | `POST /subnets/{id}/allocate-next` |
+| Allocate or release a specific address | `POST /subnets/{id}/addresses/{address}/allocate` · `POST /subnets/{id}/addresses/{address}/release` |
+| Create or list devices | `POST /devices` · `GET /devices` |
+| Add or list interfaces | `POST /devices/{id}/interfaces` · `GET /devices/{id}/interfaces` |
 
-On Linux or macOS, use `./mvnw -P oracle-integration verify`. The optional integration test starts an Oracle Free container, creates a temporary schema, then checks pool persistence, concurrent allocation, and release on Oracle. It does not require an Oracle Cloud account. The regular test command does not start a container.
+Subnet creation accepts `{"networkAddress":"10.20.30.0","prefixLength":29,"gatewayAddress":"10.20.30.1"}`. Allocation accepts `{"networkInterfaceId":1}`. Invalid requests and conflicting operations return structured errors.
 
-This integration check has passed against Oracle Free. The `oracle` application profile expects an existing schema and validates it at startup. A migration or schema provisioning step is still needed before using that profile for a persistent deployment.
+## Scope
 
-## Current limitations
-
-- Allocation and release serialize on the subnet row. Concurrent allocation is covered on H2 and Oracle Free.
-- The Oracle integration test needs a working Docker engine. It verifies the core persistence and allocation workflow, not a persistent Oracle deployment.
-- The operations dashboard, Docker environment, and CI workflow have not been added.
-
-## Next steps
-
-- Add a focused React operations dashboard
-- Add Docker-based local execution and automated CI checks
-- Add repeatable schema provisioning for persistent Oracle deployment
-
-DHCP integration and reconciliation remain possible future extensions after the smaller IPAM application is complete.
+NetCore materializes one database row per address, which is why pools are limited to `/24`–`/30`. Locking one subnet at a time is simple and safe for this scale but limits throughput within a heavily used subnet. The dashboard is a local operations tool; it has no authentication, IPv6 support, or device/DHCP provisioning.

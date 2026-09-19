@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -86,6 +87,20 @@ class PersistenceWorkflowTests {
                         IpAddressStatus.RESERVED
                 )
         );
+    }
+
+    @Test
+    void rejectsOverlappingSubnetPoolsAndRollsBackTheNewSubnet() {
+        subnetPoolPersistenceService.createSubnetWithPool(new Subnet("10.20.30.0", 29, null));
+
+        assertThrows(DataIntegrityViolationException.class, () ->
+                subnetPoolPersistenceService.createSubnetWithPool(
+                        new Subnet("10.20.30.0", 30, null)
+                )
+        );
+
+        assertEquals(1, subnetRepository.count());
+        assertEquals(8, ipAddressRepository.count());
     }
 
     @Test

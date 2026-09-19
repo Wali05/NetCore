@@ -1,0 +1,36 @@
+services:
+  oracle:
+    image: gvenzl/oracle-free:slim-faststart
+    environment:
+      ORACLE_PASSWORD: ${NETCORE_DB_PASSWORD:-netcore_local_only}
+      APP_USER: netcore
+      APP_USER_PASSWORD: ${NETCORE_DB_PASSWORD:-netcore_local_only}
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  backend:
+    build: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: oracle
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREEPDB1
+      SPRING_DATASOURCE_USERNAME: netcore
+      SPRING_DATASOURCE_PASSWORD: ${NETCORE_DB_PASSWORD:-netcore_local_only}
+    depends_on:
+      oracle:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:${NETCORE_WEB_PORT:-3000}:80"
+    depends_on:
+      - backend
+
+volumes:
+  oracle-data:

@@ -51,8 +51,6 @@ class OraclePersistenceIT {
         registry.add("spring.datasource.url", oracle::getJdbcUrl);
         registry.add("spring.datasource.username", oracle::getUsername);
         registry.add("spring.datasource.password", oracle::getPassword);
-        // This is a throwaway schema. The runtime Oracle profile still validates an existing schema.
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
     }
 
     @Autowired

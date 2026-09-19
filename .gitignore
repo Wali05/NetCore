@@ -42,3 +42,8 @@ logs/
 # Secrets / local env overrides
 *.env
 *.local
+
+# Frontend dependencies and build output
+node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
