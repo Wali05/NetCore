@@ -1,5 +1,6 @@
 services:
   oracle:
+    restart: unless-stopped
     image: gvenzl/oracle-free:slim-faststart
     environment:
       ORACLE_PASSWORD: ${NETCORE_DB_PASSWORD:-netcore_local_only}
@@ -16,6 +17,7 @@ services:
 
   backend:
     build: ./backend
+    restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: oracle
       SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREEPDB1
@@ -24,13 +26,26 @@ services:
     depends_on:
       oracle:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   frontend:
     build: ./frontend
+    restart: unless-stopped
     ports:
       - "127.0.0.1:${NETCORE_WEB_PORT:-3000}:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
 volumes:
   oracle-data:

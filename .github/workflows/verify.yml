@@ -48,3 +48,29 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run build
+
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build and start the persistent stack
+        run: docker compose up --build -d --wait --wait-timeout 600
+      - name: Seed and check inventory through Nginx
+        run: |
+          node scripts/seed-demo.mjs http://127.0.0.1:3000
+          node --input-type=module -e "const r = await fetch('http://127.0.0.1:3000/api/v1/subnets'); const s = await r.json(); if (!r.ok || s.length !== 4 || s.reduce((n, v) => n + v.allocatedAddresses, 0) !== 23) process.exit(1);"
+      - name: Confirm records survive an application restart
+        run: |
+          docker compose restart backend
+          docker compose up -d --wait --wait-timeout 120
+          node --input-type=module -e "const r = await fetch('http://127.0.0.1:3000/api/v1/interfaces'); const rows = await r.json(); if (!r.ok || rows.length !== 8) process.exit(1);"
+      - name: Print container logs on failure
+        if: failure()
+        run: docker compose logs --tail=100
+      - name: Stop test containers
+        if: always()
+        run: docker compose down --volumes

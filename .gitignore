@@ -42,6 +42,8 @@ logs/
 # Secrets / local env overrides
 *.env
 *.local
+.env.*
+!.env.example
 
 # Frontend dependencies and build output
 node_modules/

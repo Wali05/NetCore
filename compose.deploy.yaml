@@ -1,0 +1,29 @@
+# Optional private-demo gateway. Keep the database and API on the internal network.
+services:
+  oracle:
+    environment:
+      ORACLE_PASSWORD: ${NETCORE_DB_ADMIN_PASSWORD:?Set a separate Oracle administrator password}
+      APP_USER_PASSWORD: ${NETCORE_DB_PASSWORD:?Set the application database password}
+  backend:
+    environment:
+      SPRING_DATASOURCE_PASSWORD: ${NETCORE_DB_PASSWORD:?Set the application database password}
+  gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      NETCORE_DOMAIN: ${NETCORE_DOMAIN:?Set a DNS name pointing at this server}
+      NETCORE_DEMO_PASSWORD_HASH: ${NETCORE_DEMO_PASSWORD_HASH:?Generate a password hash with caddy hash-password}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+
+volumes:
+  caddy-data:
+  caddy-config:

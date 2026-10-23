@@ -1,0 +1,13 @@
+{$NETCORE_DOMAIN} {
+	@crossSiteWrite {
+		method POST PUT PATCH DELETE
+		header Sec-Fetch-Site cross-site
+	}
+	respond @crossSiteWrite 403
+	basic_auth {
+		reviewer {$NETCORE_DEMO_PASSWORD_HASH}
+	}
+	reverse_proxy frontend:80 {
+		header_up -Authorization
+	}
+}
