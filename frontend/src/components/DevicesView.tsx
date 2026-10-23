@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import type { Device, DeviceType, NetworkInterface } from '../api'
 import { isValidMac, macHint } from '../validation'
 import { CopyButton } from './CopyButton'
+import { Icon } from './Icon'
 
 const deviceTypes: DeviceType[] = ['SERVER', 'WORKSTATION', 'ROUTER', 'SWITCH', 'OTHER']
 
@@ -10,6 +11,7 @@ interface DevicesViewProps {
   selectedDevice: number | null
   interfaces: NetworkInterface[]
   busy: boolean
+  unavailable: boolean
   onSelectDevice: (id: number) => void
   onCreateDevice: (name: string, type: DeviceType) => Promise<boolean>
   onCreateInterface: (deviceId: number, name: string, mac: string) => Promise<boolean>
@@ -20,6 +22,7 @@ export function DevicesView({
   selectedDevice,
   interfaces,
   busy,
+  unavailable,
   onSelectDevice,
   onCreateDevice,
   onCreateInterface,
@@ -29,6 +32,10 @@ export function DevicesView({
   const [interfaceName, setInterfaceName] = useState('')
   const [mac, setMac] = useState('')
   const [macTouched, setMacTouched] = useState(false)
+  const [search, setSearch] = useState('')
+  const visibleDevices = devices.filter((device) =>
+    `${device.name} ${device.type}`.toLowerCase().includes(search.trim().toLowerCase()),
+  )
 
   const macValidation = macTouched ? macHint(mac) : null
 
@@ -49,6 +56,7 @@ export function DevicesView({
   }
 
   const selectedDeviceData = devices.find((d) => d.id === selectedDevice)
+  const assignedCount = interfaces.reduce((total, item) => total + item.assignedAddresses.length, 0)
 
   return (
     <>
@@ -66,8 +74,17 @@ export function DevicesView({
               <h2>Registered devices</h2>
               <span className="count">{devices.length}</span>
             </div>
+            <label className="search-field">
+              <Icon name="search" size={16} />
+              <input
+                aria-label="Search devices"
+                placeholder="Search by name or type…"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
             <div className="device-list">
-              {devices.map((device) => (
+              {visibleDevices.map((device) => (
                 <button
                   className={`device-row ${selectedDevice === device.id ? 'selected' : ''}`}
                   key={device.id}
@@ -75,7 +92,11 @@ export function DevicesView({
                   aria-pressed={selectedDevice === device.id}
                 >
                   <span className="device-icon" aria-hidden="true">
-                    {device.name.slice(0, 1).toUpperCase()}
+                    <Icon
+                      name={
+                        device.type === 'ROUTER' || device.type === 'SWITCH' ? 'network' : 'devices'
+                      }
+                    />
                   </span>
                   <span>
                     <strong>{device.name}</strong>
@@ -86,6 +107,9 @@ export function DevicesView({
               ))}
               {devices.length === 0 && (
                 <div className="empty small">No devices yet. Add one below.</div>
+              )}
+              {devices.length > 0 && visibleDevices.length === 0 && (
+                <div className="empty small">No devices match “{search}”.</div>
               )}
             </div>
           </section>
@@ -116,7 +140,7 @@ export function DevicesView({
                   ))}
                 </select>
               </label>
-              <button className="primary wide" disabled={busy}>
+              <button className="primary wide" disabled={busy || unavailable}>
                 {busy ? 'Creating…' : 'Create device'}
               </button>
             </form>
@@ -131,6 +155,18 @@ export function DevicesView({
               </div>
             </div>
             <div className="interface-list">
+              {selectedDeviceData && (
+                <div className="device-summary">
+                  <span className="subtle-tag">{selectedDeviceData.type.toLowerCase()}</span>
+                  <span>
+                    <strong>{interfaces.length}</strong>{' '}
+                    {interfaces.length === 1 ? 'interface' : 'interfaces'}
+                  </span>
+                  <span>
+                    <strong>{assignedCount}</strong> assigned {assignedCount === 1 ? 'IP' : 'IPs'}
+                  </span>
+                </div>
+              )}
               {interfaces.map((item) => (
                 <div className="interface-row" key={item.id}>
                   <div className="interface-top">
@@ -185,12 +221,18 @@ export function DevicesView({
                   onChange={(e) => setMac(e.target.value)}
                   onBlur={() => setMacTouched(true)}
                   className={macValidation ? 'field-invalid' : ''}
+                  aria-invalid={!!macValidation}
+                  aria-describedby={macValidation ? 'mac-error' : undefined}
                 />
-                {macValidation && <span className="field-hint error">{macValidation}</span>}
+                {macValidation && (
+                  <span id="mac-error" className="field-hint error">
+                    {macValidation}
+                  </span>
+                )}
               </label>
               <button
                 className="primary wide"
-                disabled={busy || selectedDevice === null || !!macValidation}
+                disabled={busy || unavailable || selectedDevice === null || !!macValidation}
               >
                 {busy ? 'Adding…' : 'Add interface'}
               </button>

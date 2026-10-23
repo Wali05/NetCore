@@ -53,6 +53,9 @@ interface ApiError {
 export async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
     ...options,
+    signal: options?.signal
+      ? AbortSignal.any([options.signal, AbortSignal.timeout(15000)])
+      : AbortSignal.timeout(15000),
     headers: { 'Content-Type': 'application/json', ...options?.headers },
   })
 

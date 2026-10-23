@@ -3,15 +3,20 @@ import type { Address, IpStatus, NetworkInterface, Page, Subnet } from '../api'
 import { ipv4Hint, isValidIpv4 } from '../validation'
 import { CopyButton } from './CopyButton'
 import { SubnetTable } from './SubnetTable'
+import { SubnetDetail } from './SubnetDetail'
+import { AddressMap } from './AddressMap'
 
 interface AddressSpaceViewProps {
   subnets: Subnet[]
   selectedSubnet: number | null
   addresses: Page<Address> | null
+  addressError: string
+  onRetry: () => void
   allInterfaces: NetworkInterface[]
   page: number
   statusFilter: 'ALL' | IpStatus
   busy: boolean
+  unavailable: boolean
   showSubnetForm: boolean
   onSelectSubnet: (id: number) => void
   onSetPage: (page: number) => void
@@ -27,10 +32,13 @@ export function AddressSpaceView({
   subnets,
   selectedSubnet,
   addresses,
+  addressError,
+  onRetry,
   allInterfaces,
   page,
   statusFilter,
   busy,
+  unavailable,
   showSubnetForm,
   onSelectSubnet,
   onSetPage,
@@ -43,6 +51,7 @@ export function AddressSpaceView({
 }: AddressSpaceViewProps) {
   const currentSubnet = subnets.find((s) => s.id === selectedSubnet)
   const subnetInput = useRef<HTMLInputElement>(null)
+  const interfaceInput = useRef<HTMLSelectElement>(null)
 
   const [network, setNetwork] = useState('')
   const [prefix, setPrefix] = useState(29)
@@ -61,6 +70,14 @@ export function AddressSpaceView({
   const networkHint = networkTouched ? ipv4Hint(network) : null
   const gatewayHint = gatewayTouched ? ipv4Hint(gateway) : null
   const requestedHint = requestedTouched ? ipv4Hint(requestedAddress) : null
+  const statusCounts = currentSubnet
+    ? {
+        ALL: currentSubnet.totalAddresses,
+        AVAILABLE: currentSubnet.availableAddresses,
+        ALLOCATED: currentSubnet.allocatedAddresses,
+        RESERVED: currentSubnet.reservedAddresses,
+      }
+    : null
 
   async function handleCreateSubnet(event: FormEvent) {
     event.preventDefault()
@@ -94,6 +111,7 @@ export function AddressSpaceView({
           {showSubnetForm ? 'Close form' : '+ New subnet'}
         </button>
       </section>
+      {currentSubnet && <SubnetDetail subnet={currentSubnet} />}
       <div className="two-column">
         <div className="stack">
           <section className="panel">
@@ -102,12 +120,15 @@ export function AddressSpaceView({
               <span className="count">{subnets.length}</span>
             </div>
             <SubnetTable
+              searchable
               subnets={subnets}
               selected={selectedSubnet}
               onSelect={(id) => {
                 onSelectSubnet(id)
                 onSetPage(0)
                 setPendingRelease(null)
+                setRequestedAddress('')
+                setRequestedTouched(false)
               }}
             />
           </section>
@@ -128,8 +149,14 @@ export function AddressSpaceView({
                     onChange={(e) => setNetwork(e.target.value)}
                     onBlur={() => setNetworkTouched(true)}
                     className={networkHint ? 'field-invalid' : ''}
+                    aria-invalid={!!networkHint}
+                    aria-describedby={networkHint ? 'network-error' : undefined}
                   />
-                  {networkHint && <span className="field-hint error">{networkHint}</span>}
+                  {networkHint && (
+                    <span id="network-error" className="field-hint error">
+                      {networkHint}
+                    </span>
+                  )}
                 </label>
                 <label>
                   Prefix length
@@ -151,21 +178,28 @@ export function AddressSpaceView({
                     onChange={(e) => setGateway(e.target.value)}
                     onBlur={() => setGatewayTouched(true)}
                     className={gatewayHint ? 'field-invalid' : ''}
+                    aria-invalid={!!gatewayHint}
+                    aria-describedby={gatewayHint ? 'gateway-error' : undefined}
                   />
-                  {gatewayHint && <span className="field-hint error">{gatewayHint}</span>}
+                  {gatewayHint && (
+                    <span id="gateway-error" className="field-hint error">
+                      {gatewayHint}
+                    </span>
+                  )}
                 </label>
                 <p className="form-hint wide">
                   Network and broadcast addresses are reserved automatically. A gateway is reserved
                   when provided.
                 </p>
-                <button className="primary wide" disabled={busy || !!networkHint || !!gatewayHint}>
+                <button
+                  className="primary wide"
+                  disabled={busy || unavailable || !!networkHint || !!gatewayHint}
+                >
                   {busy ? 'Creating…' : 'Create subnet'}
                 </button>
               </form>
             </section>
           )}
-        </div>
-        <div className="stack">
           <section className="panel assignment-panel">
             <div className="panel-heading">
               <div>
@@ -177,6 +211,7 @@ export function AddressSpaceView({
               <label className="wide">
                 Device interface
                 <select
+                  ref={interfaceInput}
                   required
                   value={allocationInterface}
                   onChange={(e) => setAllocationInterface(e.target.value)}
@@ -199,13 +234,20 @@ export function AddressSpaceView({
                   onChange={(e) => setRequestedAddress(e.target.value)}
                   onBlur={() => setRequestedTouched(true)}
                   className={requestedHint ? 'field-invalid' : ''}
+                  aria-invalid={!!requestedHint}
+                  aria-describedby={requestedHint ? 'requested-error' : undefined}
                 />
-                {requestedHint && <span className="field-hint error">{requestedHint}</span>}
+                {requestedHint && (
+                  <span id="requested-error" className="field-hint error">
+                    {requestedHint}
+                  </span>
+                )}
               </label>
               <button
                 className="primary wide"
                 disabled={
                   busy ||
+                  unavailable ||
                   selectedSubnet === null ||
                   !allocationInterface ||
                   currentSubnet?.availableAddresses === 0 ||
@@ -214,6 +256,12 @@ export function AddressSpaceView({
               >
                 {busy ? 'Assigning…' : 'Assign address'}
               </button>
+              <p className="form-hint wide">
+                {requestedAddress
+                  ? `Requesting ${requestedAddress} in ${currentSubnet?.cidr ?? 'the selected subnet'}.`
+                  : 'Automatically selects the lowest available address in this subnet.'}{' '}
+                Availability is checked again when you assign.
+              </p>
               {allInterfaces.length === 0 && (
                 <p className="form-hint wide">
                   Add a device and interface in{' '}
@@ -229,6 +277,8 @@ export function AddressSpaceView({
               )}
             </form>
           </section>
+        </div>
+        <div className="stack">
           <section className="panel">
             <div className="panel-heading">
               <div>
@@ -256,6 +306,7 @@ export function AddressSpaceView({
                         }}
                       >
                         {status === 'ALL' ? 'All' : status.toLowerCase()}
+                        <span className="filter-count">{statusCounts?.[status]}</span>
                       </button>
                     ))}
                   </div>
@@ -263,6 +314,18 @@ export function AddressSpaceView({
                     {addresses ? `${addresses.totalElements} results` : 'Loading…'}
                   </span>
                 </div>
+                {addresses && (
+                  <AddressMap
+                    addresses={addresses.content}
+                    selected={requestedAddress}
+                    disabled={busy || unavailable}
+                    onChoose={(address) => {
+                      setRequestedAddress(address)
+                      setRequestedTouched(false)
+                      interfaceInput.current?.focus()
+                    }}
+                  />
+                )}
                 <div className="address-list">
                   {addresses?.content.map((address) => (
                     <div className="address-row" key={address.id}>
@@ -274,7 +337,13 @@ export function AddressSpaceView({
                         <small>
                           {address.deviceName
                             ? `${address.deviceName} / ${address.networkInterfaceName}`
-                            : '—'}
+                            : address.status === 'AVAILABLE'
+                              ? 'Ready for assignment'
+                              : address.address === currentSubnet.gatewayAddress
+                                ? 'Gateway reservation'
+                                : address.address === currentSubnet.networkAddress
+                                  ? 'Network address'
+                                  : 'Broadcast address'}
                         </small>
                       </div>
                       <span className={`pill ${address.status.toLowerCase()}`}>
@@ -286,7 +355,7 @@ export function AddressSpaceView({
                             <>
                               <button
                                 className="row-action confirm"
-                                disabled={busy}
+                                disabled={busy || unavailable}
                                 onClick={() => {
                                   onRelease(address.address)
                                   setPendingRelease(null)
@@ -304,7 +373,7 @@ export function AddressSpaceView({
                           ) : (
                             <button
                               className="row-action"
-                              disabled={busy}
+                              disabled={busy || unavailable}
                               onClick={() => setPendingRelease(address.address)}
                             >
                               Release
@@ -314,7 +383,16 @@ export function AddressSpaceView({
                       )}
                     </div>
                   ))}
-                  {addresses === null && <div className="empty small">Loading addresses…</div>}
+                  {addressError ? (
+                    <div className="empty small" role="alert">
+                      {addressError}{' '}
+                      <button className="text-button" onClick={onRetry} disabled={busy}>
+                        Try again
+                      </button>
+                    </div>
+                  ) : (
+                    addresses === null && <div className="empty small">Loading addresses…</div>
+                  )}
                   {addresses?.content.length === 0 && (
                     <div className="empty small">No addresses match this filter.</div>
                   )}
