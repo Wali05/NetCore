@@ -14,8 +14,10 @@ public interface IpAddressRepository extends JpaRepository<IpAddress, Long> {
 
     List<IpAddress> findAllBySubnetIdOrderByAddressNumericAsc(Long subnetId);
 
+    @EntityGraph(attributePaths = {"networkInterface", "networkInterface.device"})
     Page<IpAddress> findAllBySubnetId(Long subnetId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"networkInterface", "networkInterface.device"})
     Page<IpAddress> findAllBySubnetIdAndStatus(
             Long subnetId,
             IpAddressStatus status,
@@ -30,6 +32,17 @@ public interface IpAddressRepository extends JpaRepository<IpAddress, Long> {
     );
 
     long countBySubnetIdAndStatus(Long subnetId, IpAddressStatus status);
+
+    @Query("select ip.subnet.id as subnetId, ip.status as status, count(ip) as total "
+            + "from IpAddress ip group by ip.subnet.id, ip.status")
+    List<AddressStatusCount> countAllBySubnetAndStatus();
+
+    @Query("select ip.subnet.id as subnetId, ip.status as status, count(ip) as total "
+            + "from IpAddress ip where ip.subnet.id = :subnetId group by ip.subnet.id, ip.status")
+    List<AddressStatusCount> countBySubnetAndStatus(@Param("subnetId") Long subnetId);
+
+    @EntityGraph(attributePaths = {"networkInterface", "subnet"})
+    List<IpAddress> findAllByNetworkInterfaceIsNotNullOrderByAddressNumericAsc();
 
     List<IpAddress> findAllByNetworkInterfaceIdOrderByAddressNumericAsc(
             Long networkInterfaceId

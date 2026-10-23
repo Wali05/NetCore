@@ -5,6 +5,7 @@ import dev.wali.netcore.allocation.NoAvailableIpAddressException;
 import dev.wali.netcore.device.Device;
 import dev.wali.netcore.device.DeviceRepository;
 import dev.wali.netcore.device.DeviceType;
+import dev.wali.netcore.device.DeviceManagementService;
 import dev.wali.netcore.device.NetworkInterface;
 import dev.wali.netcore.device.NetworkInterfaceRepository;
 import dev.wali.netcore.subnet.IpAddress;
@@ -12,6 +13,7 @@ import dev.wali.netcore.subnet.IpAddressRepository;
 import dev.wali.netcore.subnet.IpAddressStatus;
 import dev.wali.netcore.subnet.Subnet;
 import dev.wali.netcore.subnet.SubnetPoolPersistenceService;
+import dev.wali.netcore.subnet.SubnetManagementService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -70,6 +72,12 @@ class OraclePersistenceIT {
 
     @Autowired
     private IpAllocationService ipAllocationService;
+
+    @Autowired
+    private SubnetManagementService subnetManagementService;
+
+    @Autowired
+    private DeviceManagementService deviceManagementService;
 
     @Test
     void persistsAndAllocatesOnOracleUnderContention() throws Exception {
@@ -143,5 +151,15 @@ class OraclePersistenceIT {
         assertEquals(IpAddressStatus.AVAILABLE, released.getStatus());
         assertNull(released.getNetworkInterface());
         assertNull(released.getAllocatedAt());
+
+        // Exercise the dashboard's aggregate and fetch-join queries on Oracle too.
+        var summary = subnetManagementService.listSubnets().getFirst();
+        assertEquals(1, summary.availableAddresses());
+        assertEquals(1, summary.allocatedAddresses());
+        assertEquals(2, summary.reservedAddresses());
+        assertEquals(50.0, summary.utilizationPercent());
+        var inventory = deviceManagementService.listAllInterfaces();
+        assertEquals(1, inventory.size());
+        assertEquals("198.51.100.2", inventory.getFirst().assignedAddresses().getFirst().address());
     }
 }

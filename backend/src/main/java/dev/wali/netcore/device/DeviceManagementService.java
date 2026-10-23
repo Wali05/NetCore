@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class DeviceManagementService {
@@ -49,6 +51,17 @@ public class DeviceManagementService {
         );
 
         return toInterfaceResponse(networkInterface, List.of());
+    }
+
+    @Transactional(readOnly = true)
+    public List<NetworkInterfaceResponse> listAllInterfaces() {
+        List<NetworkInterface> interfaces = networkInterfaceRepository.findAllByOrderByDeviceNameAscNameAsc();
+        Map<Long, List<IpAddress>> assignments = ipAddressRepository
+                .findAllByNetworkInterfaceIsNotNullOrderByAddressNumericAsc().stream()
+                .collect(Collectors.groupingBy(ip -> ip.getNetworkInterface().getId()));
+        return interfaces.stream()
+                .map(item -> toInterfaceResponse(item, assignments.getOrDefault(item.getId(), List.of())))
+                .toList();
     }
 
     @Transactional(readOnly = true)

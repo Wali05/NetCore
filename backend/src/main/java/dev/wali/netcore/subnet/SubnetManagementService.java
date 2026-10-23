@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class SubnetManagementService {
@@ -46,11 +49,13 @@ public class SubnetManagementService {
 
     @Transactional(readOnly = true)
     public List<SubnetResponse> listSubnets() {
-        return subnetRepository.findAll(
-                        Sort.by("networkAddress").ascending()
-                                .and(Sort.by("prefixLength").ascending())
-                ).stream()
-                .map(this::toSubnetResponse)
+        Map<Long, List<AddressStatusCount>> counts = ipAddressRepository.countAllBySubnetAndStatus()
+                .stream().collect(Collectors.groupingBy(AddressStatusCount::getSubnetId));
+        return subnetRepository.findAll().stream()
+                .sorted(Comparator.comparingLong((Subnet subnet) ->
+                        Ipv4AddressCalculator.toNumeric(subnet.getNetworkAddress()))
+                        .thenComparingInt(Subnet::getPrefixLength))
+                .map(subnet -> toSubnetResponse(subnet, counts.getOrDefault(subnet.getId(), List.of())))
                 .toList();
     }
 
@@ -122,9 +127,13 @@ public class SubnetManagementService {
     }
 
     private SubnetResponse toSubnetResponse(Subnet subnet) {
-        long available = count(subnet, IpAddressStatus.AVAILABLE);
-        long allocated = count(subnet, IpAddressStatus.ALLOCATED);
-        long reserved = count(subnet, IpAddressStatus.RESERVED);
+        return toSubnetResponse(subnet, ipAddressRepository.countBySubnetAndStatus(subnet.getId()));
+    }
+
+    private SubnetResponse toSubnetResponse(Subnet subnet, List<AddressStatusCount> counts) {
+        long available = count(counts, IpAddressStatus.AVAILABLE);
+        long allocated = count(counts, IpAddressStatus.ALLOCATED);
+        long reserved = count(counts, IpAddressStatus.RESERVED);
         long total = available + allocated + reserved;
 
         // Reserved addresses cannot be allocated, so utilization is based on the usable pool.
@@ -146,8 +155,9 @@ public class SubnetManagementService {
         );
     }
 
-    private long count(Subnet subnet, IpAddressStatus status) {
-        return ipAddressRepository.countBySubnetIdAndStatus(subnet.getId(), status);
+    private long count(List<AddressStatusCount> counts, IpAddressStatus status) {
+        return counts.stream().filter(count -> count.getStatus() == status)
+                .mapToLong(AddressStatusCount::getTotal).sum();
     }
 
     private IpAddressResponse toIpAddressResponse(IpAddress ipAddress) {

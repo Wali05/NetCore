@@ -136,6 +136,11 @@ class IpamRestApiTests {
                 .andExpect(jsonPath("$.assignedAddresses[0].address")
                         .value("10.20.30.10"));
 
+        mockMvc.perform(get("/api/v1/interfaces"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].deviceName").value("edge-router-01"))
+                .andExpect(jsonPath("$[0].assignedAddresses[0].address").value("10.20.30.10"));
+
         mockMvc.perform(post(
                         "/api/v1/subnets/{subnetId}/addresses/{address}/release",
                         subnet.getId(),
